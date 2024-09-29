@@ -18,30 +18,30 @@ ws = data.variables['WS'][:]  # Wind speed data
 # Convert time to human-readable format
 time_dates = num2date(time_data, units=time_units)
 
-# Create a Basemap instance
-mp = Basemap(projection='merc',
-             llcrnrlon=61.4309660, llcrnrlat=-2.4438284,
-             urcrnrlon=93.4210174, urcrnrlat=27.3475395,
-             resolution='l')  # Use 'i' for intermediate resolution
-
-lon, lat = np.meshgrid(lons, lats)
-x, y = mp(lon, lat)
-
-# Streamlit interface
-st.title("Wind Speed Visualization")
-
-# Slider for selecting time frame
-selected_frame = st.slider("Select time frame", 0, len(time_data) - 1, 0)
-
-# Button to start animation
-animate = st.button("Start Animation")
-
 # Create a placeholder for the plot
 plot_placeholder = st.empty()
 
-# Function to plot a single frame
+# Initialize session state for animation control
+if 'animate_flag' not in st.session_state:
+    st.session_state.animate_flag = False
+
+# Button to control the animation
+start_animation = st.button("Start Animation")
+stop_animation = st.button("Stop Animation")
+
+# Update session state based on button clicks
+if start_animation:
+    st.session_state.animate_flag = True
+if stop_animation:
+    st.session_state.animate_flag = False
+
+# Function to plot a single frame, focusing on India
 def plot_frame(frame):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(8, 6))  # Set a fixed figure size
+    mp = Basemap(projection='merc',
+                 llcrnrlon=68.0, llcrnrlat=6.0,
+                 urcrnrlon=98.0, urcrnrlat=38.0,
+                 resolution='l', ax=ax)  # Set map boundaries to show only India
     mp.drawcoastlines()
     mp.drawcountries()
     mp.drawstates()
@@ -50,14 +50,27 @@ def plot_frame(frame):
     if np.ma.is_masked(current_ws):
         current_ws = np.ma.filled(current_ws, fill_value=np.nan)
 
-    c_scheme = mp.pcolor(x, y, current_ws, cmap='jet', shading='auto')
-    plt.colorbar(c_scheme, ax=ax, label='Wind Speed (m/s)')
+    c_scheme = mp.pcolor(x, y, current_ws, cmap='jet', shading='auto', latlon=True)
+
+    # Add colorbar with fixed position and size
+    cbar = plt.colorbar(c_scheme, ax=ax, orientation='horizontal', pad=0.05)
+    cbar.set_label('Wind Speed (m/s)')
+
     ax.set_title(f'Wind Speed on {time_dates[frame].strftime("%Y-%m-%d %H:%M:%S")}')
     return fig
 
-# Animation logic
-if animate:
+# Get latitude and longitude for Basemap
+lon, lat = np.meshgrid(lons, lats)
+x, y = lon, lat
+
+# Slider for selecting time frame
+selected_frame = st.slider("Select time frame", 0, len(time_data) - 1, 0)
+
+# Animation logic using session state to prevent page reloads
+if st.session_state.animate_flag:
     for frame in range(len(time_data)):
+        if not st.session_state.animate_flag:
+            break  # Stop animation if the flag is set to False
         fig = plot_frame(frame)
         plot_placeholder.pyplot(fig)  # Update the plot in the same placeholder
         time.sleep(0.1)  # Adjust the speed of the animation
